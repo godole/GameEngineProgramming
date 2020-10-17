@@ -103,10 +103,10 @@ bool GameEngine::LoadScene()
 	_Camera->SetCameraViewSize(_ViewportSize);
 
 	std::mt19937 generator(0);
-	std::uniform_real_distribution<float> dist(-500.f, 500.f);
+	std::uniform_real_distribution<float> dist(-5000.f, 5000.f);
 
 	// 100개의 배경 게임 오브젝트 생성
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < 10000; ++i)
 	{
 		char name[64];
 		std::snprintf(name, sizeof(name), "GameObject%d", i);
@@ -118,6 +118,34 @@ bool GameEngine::LoadScene()
 		{
 			return false;
 		}
+	}
+
+	static Vector2 totalAreaExtent = Vector2::One * 50000.f;
+	static CK::Rectangle totalArea(-totalAreaExtent, totalAreaExtent);
+	QuadTreeRoot = QuadTree(totalArea, 1, 10, 10);
+
+
+	// 모든 게임 오브젝트를 QuadTree에 집어넣기
+	for (auto const& go : _GameObjects)
+	{
+		std::string key = go.get()->GetName();
+		if (key == GameEngine::PlayerKey)
+		{
+			continue;
+		}
+
+		// 오브젝트로부터 바운딩 박스와 모델링 행렬 가져오기
+		GameObject* gameObject = go.get();
+		const Mesh& mesh = GetMesh(gameObject->GetMeshKey());
+		Transform& transform = gameObject->GetTransform();
+		Matrix3x3 modelingMat = transform.GetModelingMatrix();
+
+		Rectangle roRectangleBound(mesh.GetRectangleBound());
+		roRectangleBound.Min = modelingMat * roRectangleBound.Min;
+		roRectangleBound.Max = modelingMat * roRectangleBound.Max;
+
+		// 쿼드 트리에 삽입
+		QuadTreeRoot.Insert(key, roRectangleBound);
 	}
 
 	return true;

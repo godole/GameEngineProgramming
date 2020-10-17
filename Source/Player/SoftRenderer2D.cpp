@@ -38,6 +38,34 @@ void SoftRenderer::DrawGrid2D()
 	_RSI->DrawFullVerticalLine(worldOrigin.X, LinearColor::Green);
 }
 
+void SoftRenderer::DrawQuadTree(QuadTree* tree, Vector2& cameraPos, CK::Rectangle& cameraRect)
+{
+	Vector2 vertices[4];
+	CK::Rectangle bound = tree->GetBound();
+
+	if (!cameraRect.Intersect(bound))
+	{
+		return;
+	}
+
+	vertices[0] = tree->GetBound().Min + cameraPos;
+	vertices[1] = Vector2(bound.Min.X, bound.Max.Y) + cameraPos;
+	vertices[2] = Vector2(bound.Max.X, bound.Max.Y) + cameraPos;
+	vertices[3] = Vector2(bound.Max.X, bound.Min.Y) + cameraPos;
+
+	_RSI->DrawLine(vertices[0], vertices[1], LinearColor::Blue);
+	_RSI->DrawLine(vertices[1], vertices[2], LinearColor::Blue);
+	_RSI->DrawLine(vertices[2], vertices[3], LinearColor::Blue);
+	_RSI->DrawLine(vertices[3], vertices[0], LinearColor::Blue);
+
+	for (int i = 0; i < 4; i++)
+	{
+		QuadTree* subTree = tree->GetSubTree()[i];
+		if (subTree != nullptr)
+			DrawQuadTree(subTree, cameraPos, cameraRect);
+	}
+}
+
 
 // 게임 로직
 void SoftRenderer::Update2D(float InDeltaSeconds)
@@ -80,18 +108,28 @@ void SoftRenderer::Render2D()
 
 	// 전체 그릴 물체의 수
 	size_t totalObjectCount = _GameEngine.GetGameObject().size();
-	size_t culledByCircleCount = 0;
-	size_t culledByRectCount = 0;
+	size_t culledByQuadTreeCount = 0;
 	size_t renderingObjectCount = 0;
 
-	// 카메라의 현재 원 바운딩
-	Circle cameraCircleBound(_GameEngine.GetCamera().GetCircleBound());
+	// 카메라의 바운딩
+	CK::Circle cameraCircleBound(_GameEngine.GetCamera().GetCircleBound());
 	CK::Rectangle cameraRectBound(_GameEngine.GetCamera().GetRectangleBound());
+	CK::Rectangle cameraRectBoundWorld(cameraRectBound);
+	Vector2 cameraPos = _GameEngine.GetCamera().GetTransform().GetPosition();
+	cameraRectBoundWorld.Min += cameraPos;
+	cameraRectBoundWorld.Max += cameraPos;
+
+	std::vector<std::string> items;
+	_GameEngine.GetQuadTree().Query(cameraRectBoundWorld, items);
+	culledByQuadTreeCount = totalObjectCount - items.size();
+
+
+	DrawQuadTree(&_GameEngine.GetQuadTree(), -cameraPos, cameraRectBoundWorld);
 
 	// 랜덤하게 생성된 모든 게임 오브젝트들
-	for (auto it = _GameEngine.GoBegin(); it != _GameEngine.GoEnd(); ++it)
+	for (auto it = items.begin(); it != items.end(); ++it)
 	{
-		GameObject& gameObject = *it->get();
+		GameObject& gameObject = _GameEngine.FindGameObject(*it);
 		const Mesh& mesh = _GameEngine.GetMesh(gameObject.GetMeshKey());
 		Transform& transform = gameObject.GetTransform();
 		Matrix3x3 finalMat = viewMat * transform.GetModelingMatrix();
@@ -99,34 +137,7 @@ void SoftRenderer::Render2D()
 		size_t vertexCount = mesh._Vertices.size();
 		size_t indexCount = mesh._Indices.size();
 		size_t triangleCount = indexCount / 3;
-
-		// 오브젝트의 원 바운딩 볼륨
-		Circle goCircleBound(mesh.GetCircleBound());
-		CK::Rectangle goRectBound(mesh.GetRectangleBound());
-
-		// 메시의 바운딩 볼륨 정보를 가져와서 뷰 좌표계로 변환해 비교하기 ( 스케일도 고려해 직접 구현할 것. )
-		goCircleBound.Center = finalMat * goCircleBound.Center;
-
-		goCircleBound.Radius = goCircleBound.Radius * transform.GetScale().Max();
-
-		goRectBound.Min = finalMat * goRectBound.Min;
-		goRectBound.Max = finalMat * goRectBound.Max;
-
-
-		// 두 바운딩 볼륨이 겹치지 않으면 그리기에서 제외
-		if (!cameraCircleBound.Intersect(goCircleBound))
-		{
-			culledByCircleCount++;
-			continue;
-		}
-
-		if (!cameraRectBound.Intersect(goRectBound))
-		{
-			culledByRectCount++;
-			continue;
-		}
 		
-
 		renderingObjectCount++;
 
 		// 렌더러가 사용할 정점 버퍼와 인덱스 버퍼 생성
@@ -155,8 +166,7 @@ void SoftRenderer::Render2D()
 	}
 
 	_RSI->PushStatisticText("Total Objects : " + std::to_string(totalObjectCount));
-	_RSI->PushStatisticText("Culled by Circle : " + std::to_string(culledByCircleCount));
-	_RSI->PushStatisticText("Culled by Rectangle : " + std::to_string(culledByRectCount));
+	_RSI->PushStatisticText("Culled by QuadTree : " + std::to_string(culledByQuadTreeCount));
 	_RSI->PushStatisticText("Rendering Objects : " + std::to_string(renderingObjectCount));
 
 }

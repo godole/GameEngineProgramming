@@ -4,7 +4,6 @@ namespace CK
 {
 namespace DD
 {
-
 struct OrderByHash
 {
 	inline bool operator () (const std::unique_ptr<GameObject>& _left, const std::string& _right) const
@@ -39,6 +38,8 @@ public:
 	// Ä«¸Þ¶ó 
 	DD::Camera& GetCamera() { return *_Camera.get(); }
 
+	QuadTree GetQuadTree() { return QuadTreeRoot; }
+
 	const static std::string QuadMeshKey;
 	const static std::string PlayerKey;
 
@@ -48,6 +49,7 @@ private:
 	std::vector<std::unique_ptr<DD::GameObject>> _GameObjects;
 	std::unordered_map<std::string, std::unique_ptr<DD::Mesh>> _Meshes;
 	std::unique_ptr<DD::Camera> _Camera;
+	CK::QuadTree QuadTreeRoot;
 };
 
 }

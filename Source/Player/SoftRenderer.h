@@ -46,6 +46,7 @@ private:
 	void Update2D(float InDeltaSeconds);
 	void Render2D();
 	void DrawGrid2D();
+	void DrawQuadTree(QuadTree* tree, Vector2& cameraPos, CK::Rectangle& cameraRect);
 
 	int _Grid2DUnit = 10;
 
