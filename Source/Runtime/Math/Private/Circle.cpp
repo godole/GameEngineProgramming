@@ -16,12 +16,7 @@ Circle::Circle(const std::vector<Vector2> InVertices)
 
 	//Center와 가장 먼 정점과의 거리를 Radius로 정함
 	for (auto itr = InVertices.begin(); itr != InVertices.end(); itr++)
-	{
-		float distance = (center - (*itr)).Size();
-
-		if (radius < distance)
-			radius = distance;
-	}
+		radius = Math::Max(radius, (center - (*itr)).Size());
 
 	Center = center;
 	Radius = radius;
